@@ -156,6 +156,7 @@ fn cov(out: &mut StandardStream, cli: Cli) -> AnyResult<()> {
         OutputFormat::Lcov => {
             output_path = cli.output_path.unwrap_or_else(|| "rust_coverage.lcov".to_string());
             cprint!(out, Green, "Exporting coverage data to {}", output_path);
+            args.push("-format=lcov");
             capture = true;
         }
     };
