@@ -1,18 +1,16 @@
-use std::fs;
-use std::fmt;
-use std::error::Error;
-use std::{env, process};
 use std::env::consts::EXE_SUFFIX;
+use std::error::Error;
 use std::ffi::OsStr;
-use std::path::PathBuf;
-use std::process::Command;
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::PathBuf;
+use std::process::Command;
+use std::{env, fmt, fs, process};
 
 use anyhow::Result as AnyResult;
 use clap::{Parser, ValueEnum};
 
-const PROFDATA_FILE: &str = "coverage_prepare.profdata";
+const PROFDATA_FILE: &str = "rust_coverage.profdata";
 const IGNORE_REGEXES: &[&str] = &["\\.cargo/registry", "library/std"];
 
 #[derive(Copy, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -22,34 +20,36 @@ enum OutputFormat {
     Lcov,
 }
 
-/// Convert "profraw" coverage data to
+/// Convert "profraw" coverage data to:
 /// * HTML reports
 /// * terminal table reports
-/// * LCOV files, for upload to codecov and others
+/// * LCOV files (for upload to codecov etc.)
+///
+/// See https://github.com/samuelcolvin/coverage-prepare/ for more information.
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[clap(author, version, verbatim_doc_comment)]
 struct Cli {
-   /// output format
-   #[clap(arg_enum, value_parser)]
-   output_format: OutputFormat,
+    /// output format
+    #[clap(arg_enum, value_parser)]
+    output_format: OutputFormat,
 
-   /// binary files to build coverage from
-   #[clap(value_parser)]
-   binaries: Vec<String>,
+    /// binary files to build coverage from
+    #[clap(value_parser)]
+    binaries: Vec<String>,
 
-   /// Output path, defaults to `coverage_prepare.lcov` for lcov output, and `htmlcov/rust` for html output
-   #[clap(short, long, value_parser)]
-   output_path: Option<String>,
+    /// Output path, defaults to `rust_coverage.lcov` for lcov output, and `htmlcov/rust` for html output
+    #[clap(short, long, value_parser)]
+    output_path: Option<String>,
 
-   /// maps to the `--ignore-filename-regex` argument to `llvm-cov`, `\.cargo/registry` & `library/std`
-   /// are always ignored, repeat to ignore multiple filenames
-   #[clap(long, value_parser)]
-   ignore_filename_regex: Vec<String>,
+    /// maps to the `--ignore-filename-regex` argument to `llvm-cov`, `\.cargo/registry` & `library/std`
+    /// are always ignored, repeat to ignore multiple filenames
+    #[clap(long, value_parser)]
+    ignore_filename_regex: Vec<String>,
 
-   /// whether to not delete the processed `.profraw` files and the generated `.profdata` file
-   /// after generating the coverage reports, by default these files are deleted
-   #[clap(long, value_parser)]
-   no_delete: bool,
+    /// whether to not delete the processed `.profraw` files and the generated `.profdata` file
+    /// after generating the coverage reports, by default these files are deleted
+    #[clap(long, value_parser)]
+    no_delete: bool,
 }
 
 fn main() {
@@ -75,7 +75,6 @@ fn run(cli: Cli) -> AnyResult<()> {
     maybe_delete(no_delete, profraw_files)
 }
 
-
 fn merge_raw() -> AnyResult<Vec<String>> {
     let mut profraw_files = vec![];
 
@@ -92,7 +91,11 @@ fn merge_raw() -> AnyResult<Vec<String>> {
 
     let count = profraw_files.len();
     if count == 1 {
-        println!("Converting {} file to {}", profraw_files.first().unwrap(), PROFDATA_FILE);
+        println!(
+            "Converting {} file to {}",
+            profraw_files.first().unwrap(),
+            PROFDATA_FILE
+        );
     } else {
         println!("Merging {} .profraw files into {}", count, PROFDATA_FILE);
     }
@@ -101,18 +104,21 @@ fn merge_raw() -> AnyResult<Vec<String>> {
 }
 
 fn cov(cli: Cli) -> AnyResult<()> {
-    let profile = format!("-instr-profile={}", PROFDATA_FILE);
     let command = match cli.output_format {
         OutputFormat::Html => "show",
         OutputFormat::Report => "report",
         OutputFormat::Lcov => "export",
     };
-    let mut args = vec![
-        command,
-        "-Xdemangler=rustfilt",
-        &profile,
-    ];
-    let ignore_regexes = IGNORE_REGEXES.iter().map(|r| format!("--ignore-filename-regex={}", r)).collect::<Vec<String>>();
+    let profile = format!("-instr-profile={}", PROFDATA_FILE);
+    let mut args = vec![command, "-Xdemangler=rustfilt", &profile];
+    let mut ignore_regexes = IGNORE_REGEXES
+        .iter()
+        .map(|r| format!("--ignore-filename-regex={}", r))
+        .collect::<Vec<String>>();
+    cli.ignore_filename_regex
+        .iter()
+        .for_each(|r| ignore_regexes.push(format!("--ignore-filename-regex={}", r)));
+
     args.extend(ignore_regexes.iter().map(|f| f.as_str()));
     args.extend(cli.binaries.iter().map(|f| f.as_str()));
     let mut capture = false;
@@ -120,7 +126,7 @@ fn cov(cli: Cli) -> AnyResult<()> {
 
     match cli.output_format {
         OutputFormat::Html => {
-            output_path = cli.output_path.unwrap_or("htmlcov/rust".to_string());
+            output_path = cli.output_path.unwrap_or_else(|| "htmlcov/rust".to_string());
             println!("Writing HTML coverage to {}", output_path);
             args.extend(["-format=html", "-o", &output_path]);
         }
@@ -128,7 +134,7 @@ fn cov(cli: Cli) -> AnyResult<()> {
             println!("Generating coverage report");
         }
         OutputFormat::Lcov => {
-            output_path = cli.output_path.unwrap_or("coverage_prepare.lcov".to_string());
+            output_path = cli.output_path.unwrap_or_else(|| "rust_coverage.lcov".to_string());
             println!("Exporting coverage data to {}", output_path);
             capture = true;
         }
@@ -143,7 +149,7 @@ fn cov(cli: Cli) -> AnyResult<()> {
 }
 
 fn maybe_delete(no_delete: bool, profraw_files: Vec<String>) -> AnyResult<()> {
-    let mut to_delete = profraw_files.clone();
+    let mut to_delete = profraw_files;
     to_delete.push(PROFDATA_FILE.to_string());
     if no_delete {
         println!("--no-delete set, not deleting {}", to_delete.join(", "));
@@ -153,16 +159,19 @@ fn maybe_delete(no_delete: bool, profraw_files: Vec<String>) -> AnyResult<()> {
             fs::remove_file(file)?;
         }
     }
-    return Ok(());
+    Ok(())
 }
 
 fn execute(tool_name: &str, args: &[&str], capture: bool) -> Result<Option<Vec<u8>>, StringError> {
     let path = path(tool_name).map_err(|e| StringError::new(format!("Failed to find tool: {}\n{}", tool_name, e)))?;
 
     if !path.exists() {
-        return Err(StringError::new(format!("Could not find tool: {}\nat: {}\nConsider `rustup component add llvm-tools-preview`", tool_name, path.to_string_lossy())));
+        return Err(StringError::new(format!(
+            "Could not find tool: {}\nat: {}\nConsider `rustup component add llvm-tools-preview`",
+            tool_name,
+            path.to_string_lossy()
+        )));
     };
-
 
     let cmd_display = format!("{} {}", path.display(), args.join(" "));
 
@@ -179,7 +188,6 @@ fn execute(tool_name: &str, args: &[&str], capture: bool) -> Result<Option<Vec<u
             eprint!("{}", String::from_utf8_lossy(&output.stderr));
             output.status
         }
-
     } else {
         match Command::new(path).args(args).status() {
             Err(e) => return Err(StringError::new(format!("Failed to execute: {}\n{}", cmd_display, e))),
@@ -188,8 +196,14 @@ fn execute(tool_name: &str, args: &[&str], capture: bool) -> Result<Option<Vec<u
     };
     match status.code() {
         Some(0) => Ok(None),
-        Some(status_code) => Err(StringError::new(format!("Command \"{}\" exited with status code: {}", cmd_display, status_code))),
-        None => Err(StringError::new(format!("Failed to execute command: \"{}\"", cmd_display))),
+        Some(status_code) => Err(StringError::new(format!(
+            "Command \"{}\" exited with status code: {}",
+            cmd_display, status_code
+        ))),
+        None => Err(StringError::new(format!(
+            "Failed to execute command: \"{}\"",
+            cmd_display
+        ))),
     }
 }
 
@@ -215,7 +229,6 @@ impl Error for StringError {
         None
     }
 }
-
 
 fn path(tool_name: &str) -> AnyResult<PathBuf> {
     let mut path = rustlib()?;

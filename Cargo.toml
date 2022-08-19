@@ -1,7 +1,15 @@
 [package]
 name = "coverage-prepare"
+authors = ["Samuel Colvin <s@muelcolvin.com>"]
 version = "0.1.0"
 edition = "2021"
+description = "Convert coverage data to HTML reports, LCOV files or terminal tables"
+readme = "README.md"
+license = "MIT"
+keywords = ["testing", "coverage"]
+categories = ["command-line-utilities", "development-tools", "development-tools::testing", "development-tools::build-utils"]
+homepage = "https://github.com/samuelcolvin/coverage-prepare/"
+repository = "https://github.com/samuelcolvin/coverage-prepare/"
 
 
 [dependencies]
