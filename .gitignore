@@ -1,0 +1,6 @@
+/target/
+/htmlcov/
+/pydantic_core/
+*.lcov
+*.profraw
+*.profdata

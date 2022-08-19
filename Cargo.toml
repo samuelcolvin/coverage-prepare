@@ -1,0 +1,10 @@
+[package]
+name = "coverage-prepare"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+anyhow = "1.0.62"
+clap = { version = "3.2.17", features = ["derive"] }
+rustc_version = "0.4.0"
