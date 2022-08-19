@@ -9,6 +9,7 @@ use std::{env, fmt, fs, process};
 
 use anyhow::Result as AnyResult;
 use clap::{Parser, ValueEnum};
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 const PROFDATA_FILE: &str = "rust_coverage.profdata";
 const IGNORE_REGEXES: &[&str] = &["\\.cargo/registry", "library/std"];
@@ -52,30 +53,44 @@ struct Cli {
     no_delete: bool,
 }
 
+macro_rules! cprint {
+    ($out:ident, $color:ident, $t:expr) => {{
+        $out.set_color(ColorSpec::new().set_fg(Some(Color::$color))).unwrap();
+        writeln!($out, $t).unwrap();
+        $out.reset().unwrap();
+    }};
+    ($out:ident, $color:ident, $t:expr, $( $msg_args:expr ),+ ) => {{
+        $out.set_color(ColorSpec::new().set_fg(Some(Color::$color))).unwrap();
+        writeln!($out, $t, $( $msg_args ),+).unwrap();
+        $out.reset().unwrap();
+    }};
+}
+
 fn main() {
+    let mut out = StandardStream::stderr(ColorChoice::Auto);
     let cli = Cli::parse();
     if cli.binaries.is_empty() {
-        eprintln!("No binary files specified");
+        cprint!(out, Red, "No binary files specified");
         process::exit(1);
     }
 
-    match run(cli) {
+    match run(&mut out, cli) {
         Ok(()) => (),
         Err(err) => {
-            eprintln!("{}", err);
+            cprint!(out, Red, "{}", err);
             process::exit(1);
         }
     }
 }
 
-fn run(cli: Cli) -> AnyResult<()> {
-    let profraw_files = merge_raw()?;
+fn run(out: &mut StandardStream, cli: Cli) -> AnyResult<()> {
+    let profraw_files = merge_raw(out)?;
     let no_delete = cli.no_delete;
-    cov(cli)?;
-    maybe_delete(no_delete, profraw_files)
+    cov(out, cli)?;
+    maybe_delete(out, no_delete, profraw_files)
 }
 
-fn merge_raw() -> AnyResult<Vec<String>> {
+fn merge_raw(out: &mut StandardStream) -> AnyResult<Vec<String>> {
     let mut profraw_files = vec![];
 
     for dir_entry in fs::read_dir("./")? {
@@ -84,6 +99,9 @@ fn merge_raw() -> AnyResult<Vec<String>> {
             profraw_files.push(path.to_string_lossy().to_string());
         }
     }
+    if profraw_files.is_empty() {
+        return Err(StringError::new("No .profraw files found in CWD").into());
+    }
 
     let mut args = vec!["merge", "-sparse"];
     args.extend(profraw_files.iter().map(|f| f.as_str()));
@@ -91,19 +109,21 @@ fn merge_raw() -> AnyResult<Vec<String>> {
 
     let count = profraw_files.len();
     if count == 1 {
-        println!(
+        cprint!(
+            out,
+            Green,
             "Converting {} file to {}",
             profraw_files.first().unwrap(),
             PROFDATA_FILE
         );
     } else {
-        println!("Merging {} .profraw files into {}", count, PROFDATA_FILE);
+        cprint!(out, Green, "Merging {} .profraw files into {}", count, PROFDATA_FILE);
     }
     execute("profdata", &args, false)?;
     Ok(profraw_files)
 }
 
-fn cov(cli: Cli) -> AnyResult<()> {
+fn cov(out: &mut StandardStream, cli: Cli) -> AnyResult<()> {
     let command = match cli.output_format {
         OutputFormat::Html => "show",
         OutputFormat::Report => "report",
@@ -127,15 +147,15 @@ fn cov(cli: Cli) -> AnyResult<()> {
     match cli.output_format {
         OutputFormat::Html => {
             output_path = cli.output_path.unwrap_or_else(|| "htmlcov/rust".to_string());
-            println!("Writing HTML coverage to {}", output_path);
+            cprint!(out, Green, "Writing HTML coverage to {}", output_path);
             args.extend(["-format=html", "-o", &output_path]);
         }
         OutputFormat::Report => {
-            println!("Generating coverage report");
+            cprint!(out, Green, "Generating coverage report");
         }
         OutputFormat::Lcov => {
             output_path = cli.output_path.unwrap_or_else(|| "rust_coverage.lcov".to_string());
-            println!("Exporting coverage data to {}", output_path);
+            cprint!(out, Green, "Exporting coverage data to {}", output_path);
             capture = true;
         }
     };
@@ -148,13 +168,13 @@ fn cov(cli: Cli) -> AnyResult<()> {
     Ok(())
 }
 
-fn maybe_delete(no_delete: bool, profraw_files: Vec<String>) -> AnyResult<()> {
+fn maybe_delete(out: &mut StandardStream, no_delete: bool, profraw_files: Vec<String>) -> AnyResult<()> {
     let mut to_delete = profraw_files;
     to_delete.push(PROFDATA_FILE.to_string());
     if no_delete {
-        println!("--no-delete set, not deleting {}", to_delete.join(", "));
+        cprint!(out, White, "--no-delete set, not deleting {}", to_delete.join(", "));
     } else {
-        println!("Deleting {}", to_delete.join(", "));
+        cprint!(out, White, "Deleting {} coverage files", to_delete.len());
         for file in to_delete {
             fs::remove_file(file)?;
         }
@@ -173,7 +193,7 @@ fn execute(tool_name: &str, args: &[&str], capture: bool) -> Result<Option<Vec<u
         )));
     };
 
-    let cmd_display = format!("{} {}", path.display(), args.join(" "));
+    let cmd_display = format!("{} {}", tool_name, args.join(" "));
 
     let status = if capture {
         let output = match Command::new(path).args(args).output() {
@@ -213,8 +233,10 @@ struct StringError {
 }
 
 impl StringError {
-    fn new(message: String) -> Self {
-        Self { message }
+    fn new<S: Into<String>>(message: S) -> Self {
+        Self {
+            message: message.into(),
+        }
     }
 }
 

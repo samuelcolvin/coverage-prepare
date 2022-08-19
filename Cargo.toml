@@ -1,7 +1,7 @@
 [package]
 name = "coverage-prepare"
 authors = ["Samuel Colvin <s@muelcolvin.com>"]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Convert coverage data to HTML reports, LCOV files or terminal tables"
 readme = "README.md"
@@ -16,3 +16,4 @@ repository = "https://github.com/samuelcolvin/coverage-prepare/"
 anyhow = "1.0.62"
 clap = { version = "3.2.17", features = ["derive"] }
 rustc_version = "0.4.0"
+termcolor = "1.1.3"
