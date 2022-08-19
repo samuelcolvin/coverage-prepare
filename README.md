@@ -1,7 +1,6 @@
 # Coverage Prepare
 
 [![CI](https://github.com/samuelcolvin/coverage-prepare/actions/workflows/ci.yml/badge.svg?event=push)](https://github.com/samuelcolvin/coverage-prepare/actions/workflows/ci.yml?query=branch%3Amain)
-[![Coverage](https://codecov.io/gh/samuelcolvin/coverage-prepare/branch/main/graph/badge.svg?token=xCXg5aV9wM)](https://codecov.io/gh/samuelcolvin/coverage-prepare)
 [![Crates.io](https://img.shields.io/crates/v/coverage-prepare?color=green)](https://crates.io/crates/coverage-prepare)
 
 Convert coverage data to HTML reports, LCOV files or terminal tables.

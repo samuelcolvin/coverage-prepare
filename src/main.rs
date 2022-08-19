@@ -25,7 +25,7 @@ enum OutputFormat {
 /// * terminal table reports
 /// * LCOV files (for upload to codecov etc.)
 ///
-/// See https://github.com/samuelcolvin/coverage-prepare/ for more information.
+/// See <https://github.com/samuelcolvin/coverage-prepare/> for more information.
 #[derive(Parser, Debug)]
 #[clap(author, version, verbatim_doc_comment)]
 struct Cli {
