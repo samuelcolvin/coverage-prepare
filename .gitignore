@@ -1,6 +1,7 @@
 /target/
 /htmlcov/
 /pydantic_core/
+/sandbox/
 *.lcov
 *.profraw
 *.profdata
