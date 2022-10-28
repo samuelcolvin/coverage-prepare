@@ -12,7 +12,11 @@ use clap::{Parser, ValueEnum};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 const PROFDATA_FILE: &str = "rust_coverage.profdata";
-const IGNORE_REGEXES: &[&str] = &["\\.cargo/registry", "library/std"];
+#[cfg(not(windows))]
+const IGNORE_REGEXES: &[&str] = &[r"\.cargo/registry", "library/std"];
+
+#[cfg(windows)]
+const IGNORE_REGEXES: &[&str] = &[r"\.cargo\\registry", r"library\\std"];
 
 #[derive(Copy, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum OutputFormat {
